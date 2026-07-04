@@ -292,10 +292,10 @@ export default function SettingsPage() {
         <section className="mt-6">
           <h2 className="font-medium text-gray-200">Appearance</h2>
           <p className="text-sm text-gray-500">
-            Theme. “Auto” follows your system setting.
+            Theme. “Auto” follows your system setting. “Nebula” is a neon accent theme.
           </p>
           <div className="mt-3 inline-flex rounded-lg bg-white/5 p-0.5 ring-1 ring-white/10">
-            {(['auto', 'light', 'dark'] as const).map((t) => (
+            {(['auto', 'light', 'dark', 'nebula'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTheme(t)}

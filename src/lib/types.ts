@@ -26,7 +26,7 @@ export interface Settings {
   ui: { sidebarCollapsed: boolean; theme?: Theme }
 }
 
-export type Theme = 'dark' | 'light' | 'auto'
+export type Theme = 'dark' | 'light' | 'auto' | 'nebula'
 
 export interface Agent {
   id: string

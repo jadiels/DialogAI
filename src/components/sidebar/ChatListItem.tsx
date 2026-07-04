@@ -90,7 +90,10 @@ export default function ChatListItem({ chat }: { chat: Chat }) {
         size={15}
         className="mr-2 shrink-0 text-gray-500"
       />
-      <span className="min-w-0 flex-1 truncate" title={chat.agentName ? `Agent: ${chat.agentName}` : undefined}>
+      <span
+        className="min-w-0 flex-1 truncate"
+        title={chat.agentName ? `${chat.title}\n(Agent: ${chat.agentName})` : chat.title}
+      >
         {displayed}
         {typing && <span className="animate-pulse">▍</span>}
       </span>

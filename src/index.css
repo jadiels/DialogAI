@@ -69,3 +69,93 @@ html.light * {
   padding: 1rem;
   background: transparent;
 }
+
+/* ==========================================================================
+ * Nebula — a neon accent theme (dark-based). Electric blue + violet + a red
+ * spark on a blue-biased near-black. Everything below is scoped to
+ * `html.nebula`, so the Auto / Light / Dark themes are untouched.
+ * ========================================================================== */
+html.nebula {
+  color-scheme: dark;
+
+  /* Neon palette */
+  --nebula-blue: #4d79ff;
+  --nebula-violet: #a15bff;
+  --nebula-red: #ff3d6e;
+
+  /* Remap the app's surface + accent tokens to the neon world */
+  --color-surface: #0a0b14;
+  --color-sidebar: #070810;
+  --color-elevated: #14162a;
+  --color-bubble: #171a30; /* fallback; overridden by a gradient below */
+  --color-accent: #6b7dff; /* electric indigo drives toggles, badges, dots */
+}
+
+/* Ambient glow — fixed to the viewport so every surface panel shares one
+   coherent wash of light instead of tiling it. */
+html.nebula body,
+html.nebula .bg-surface {
+  background-image:
+    radial-gradient(45rem 40rem at 10% -8%, rgba(77, 121, 255, 0.16), transparent 60%),
+    radial-gradient(42rem 40rem at 100% -6%, rgba(161, 91, 255, 0.14), transparent 60%),
+    radial-gradient(38rem 42rem at 92% 110%, rgba(255, 61, 110, 0.08), transparent 60%);
+  background-attachment: fixed;
+}
+
+/* Wordmark: blue → violet → red gradient text (logo image is unaffected) */
+html.nebula [data-brand] {
+  background: linear-gradient(90deg, var(--nebula-blue), var(--nebula-violet) 55%, var(--nebula-red));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* User message bubble: neon gradient with a soft outer glow */
+html.nebula .bg-bubble {
+  background-image: linear-gradient(135deg, var(--nebula-blue), var(--nebula-violet));
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 10px 34px -12px rgba(96, 108, 255, 0.6);
+}
+
+/* Send / stop button: matching neon gradient */
+html.nebula button[aria-label='Send message'],
+html.nebula button[aria-label='Stop generating'] {
+  background: linear-gradient(135deg, var(--nebula-blue), var(--nebula-violet));
+  color: #fff;
+  box-shadow: 0 4px 16px -4px rgba(120, 90, 255, 0.65);
+}
+
+/* Elevated panels get a faint neon hairline */
+html.nebula .bg-elevated {
+  box-shadow: inset 0 0 0 1px rgba(140, 120, 255, 0.08);
+}
+
+/* Comfortable chat reading */
+html.nebula .prose {
+  line-height: 1.75;
+}
+
+/* Neon interaction details. Skip form fields — they sit inside rounded
+   containers, so a rectangular outline on the field itself would break the
+   pill shape. The container gets the focus ring instead (see composer below). */
+html.nebula :focus-visible:not(input):not(textarea):not(select) {
+  outline: 2px solid var(--nebula-blue);
+  outline-offset: 2px;
+}
+
+/* Message composer: rounded neon ring on the OUTER pill when the textarea is
+   focused, following the border-radius instead of boxing the text field. */
+html.nebula .rounded-3xl.bg-elevated:focus-within {
+  outline: 2px solid var(--nebula-blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 22px -4px rgba(77, 121, 255, 0.4);
+}
+html.nebula ::selection {
+  background: rgba(77, 121, 255, 0.35);
+  color: #fff;
+}
+html.nebula * {
+  scrollbar-color: rgba(120, 110, 255, 0.5) transparent;
+}

@@ -35,8 +35,8 @@ function NavItem({
   )
 }
 
-const THEME_ORDER = ['auto', 'light', 'dark'] as const
-const THEME_ICON = { auto: 'monitor', light: 'sun', dark: 'moon' } as const
+const THEME_ORDER = ['auto', 'light', 'dark', 'nebula'] as const
+const THEME_ICON = { auto: 'monitor', light: 'sun', dark: 'moon', nebula: 'sparkles' } as const
 
 export default function Sidebar() {
   const chats = useChatsStore((s) => s.chats)
@@ -79,7 +79,7 @@ export default function Sidebar() {
         } ${collapsed ? 'md:hidden' : ''}`}
       >
         <div className="flex items-center justify-between px-3 pt-2">
-          <span className="flex items-center gap-2 font-semibold">
+          <span data-brand className="flex items-center gap-2 font-semibold">
             <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-5 rounded" />
             DialogAI
           </span>
@@ -140,7 +140,7 @@ export default function Sidebar() {
             className="min-w-0 flex-1"
           />
           <button
-            onClick={() => setTheme(THEME_ORDER[(THEME_ORDER.indexOf(theme) + 1) % 3])}
+            onClick={() => setTheme(THEME_ORDER[(THEME_ORDER.indexOf(theme) + 1) % THEME_ORDER.length])}
             className="shrink-0 rounded-lg p-2 text-gray-300 hover:bg-white/10 hover:text-gray-100"
             aria-label={`Theme: ${theme}. Click to change.`}
             title={`Theme: ${theme} — click to change`}

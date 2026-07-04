@@ -3,7 +3,7 @@ import type { Theme } from './types'
 const media = () => window.matchMedia('(prefers-color-scheme: dark)')
 
 /** Resolve 'auto' to the concrete scheme from the OS preference. */
-export function resolveTheme(theme: Theme): 'dark' | 'light' {
+export function resolveTheme(theme: Theme): 'dark' | 'light' | 'nebula' {
   if (theme === 'auto') return media().matches ? 'dark' : 'light'
   return theme
 }
@@ -14,7 +14,10 @@ export function applyTheme(theme: Theme): void {
   const root = document.documentElement
   root.classList.toggle('dark', resolved === 'dark')
   root.classList.toggle('light', resolved === 'light')
-  root.style.colorScheme = resolved
+  // Nebula is a dark-based accent theme: it keeps the dark color-scheme for
+  // native controls but swaps the palette tokens via its own html class.
+  root.classList.toggle('nebula', resolved === 'nebula')
+  root.style.colorScheme = resolved === 'light' ? 'light' : 'dark'
 }
 
 /** While on 'auto', re-apply when the OS preference changes. Returns cleanup. */
