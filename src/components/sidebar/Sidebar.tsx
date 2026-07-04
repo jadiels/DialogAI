@@ -80,7 +80,7 @@ export default function Sidebar() {
       >
         <div className="flex items-center justify-between px-3 pt-2">
           <span className="flex items-center gap-2 font-semibold">
-            <img src="/favicon.svg" alt="" className="size-5 rounded" />
+            <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-5 rounded" />
             DialogAI
           </span>
           <button
