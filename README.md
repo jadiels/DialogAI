@@ -83,6 +83,14 @@ The base URL may be pasted with or without a trailing `/v1`.
 | `npm run preview` | Preview the production build           |
 | `npm test`      | Run unit tests (message tree, SSE, storage) |
 
+## Contributing
+
+Contributions are welcome! DialogAI accepts changes **only through forks and
+pull requests** — fork the repo, branch off `DialogAI`, and open a PR. See
+[CONTRIBUTING.md](./CONTRIBUTING.md) for the full workflow, and use the issue
+templates to [report a bug](../../issues/new?template=bug_report.yml) or
+[request a feature](../../issues/new?template=feature_request.yml).
+
 ## Keyboard shortcuts
 
 - `Ctrl/Cmd + K` — search

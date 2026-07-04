@@ -1,0 +1,69 @@
+name: 🐛 Bug report
+description: Report something that isn't working as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! Please search
+        [existing issues](../issues) first to avoid duplicates.
+
+        ⚠️ **Never paste API keys, tokens, or secrets.** Redact them from logs and screenshots.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug — expected vs. actual behavior.
+      placeholder: When I click X, I expect Y, but Z happens instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce it?
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider / API type
+      description: Which OpenAI-compatible backend were you using?
+      options:
+        - Ollama (local)
+        - LM Studio
+        - OpenAI
+        - OpenRouter
+        - vLLM / llama.cpp
+        - LiteLLM or other proxy
+        - Other / not applicable
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser & OS
+      placeholder: e.g. Chrome 140 on Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors / logs
+      description: Paste any relevant browser console output (redact secrets).
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I removed any API keys, tokens, or personal data from this report.
+          required: true

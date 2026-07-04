@@ -1,0 +1,45 @@
+name: 💡 Feature request
+description: Suggest an idea or improvement
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! Please search
+        [existing issues](../issues) and [pull requests](../pulls) first.
+
+        Keep in mind DialogAI is **local-first and backend-free** — no telemetry,
+        no accounts, only calls to user-configured API endpoints.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the need or the pain point. What are you trying to do?
+      placeholder: I'm always frustrated when...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches or workarounds you've thought about.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues/PRs and this is not a duplicate.
+          required: true
+        - label: This fits DialogAI's local-first, backend-free design.
+          required: true
+        - label: I'd be willing to help implement it via a fork + PR.
+          required: false
