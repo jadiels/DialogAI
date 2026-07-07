@@ -115,6 +115,12 @@ export interface MessageNode {
   childrenIds: string[]
   role: Role
   content: string
+  /**
+   * Attached images (data URIs), user messages only. Kept separate from
+   * `content` so persisted chats stay string-based; multimodal content parts
+   * are assembled at the API boundary (pathToApiMessages).
+   */
+  images?: string[]
   /** Reasoning / "thinking" trace, kept separate from the answer content. */
   reasoning?: string
   /** For assistant messages: which model produced it. */

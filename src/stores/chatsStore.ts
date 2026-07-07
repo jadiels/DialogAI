@@ -44,10 +44,10 @@ interface ChatsState {
   setDraft: (draft: Partial<Draft>) => void
   resetDraft: () => void
   /** Creates a chat from the current draft and sends the first message. */
-  startChat: (firstMessage: string) => Promise<string | null>
-  sendMessage: (chatId: string, content: string) => Promise<void>
+  startChat: (firstMessage: string, images?: string[]) => Promise<string | null>
+  sendMessage: (chatId: string, content: string, images?: string[]) => Promise<void>
   /** Edit a user message: new sibling branch + resend. */
-  editMessage: (chatId: string, nodeId: string, content: string) => Promise<void>
+  editMessage: (chatId: string, nodeId: string, content: string, images?: string[]) => Promise<void>
   /** New assistant sibling, streamed with the chat's current model. */
   regenerate: (chatId: string, assistantNodeId: string) => Promise<void>
   navigate: (chatId: string, nodeId: string, dir: 1 | -1) => void
@@ -271,7 +271,7 @@ export const useChatsStore = create<ChatsState>((set, get) => {
       set({ draft: { agentId: null, model: null, profileId: null, sampling: null } })
     },
 
-    async startChat(firstMessage) {
+    async startChat(firstMessage, images) {
       const settings = useSettingsStore.getState().settings
       const { draft } = get()
       const profile = profileById(settings, draft.profileId ?? undefined) ?? activeProfile(settings)
@@ -299,15 +299,15 @@ export const useChatsStore = create<ChatsState>((set, get) => {
       // The draft has been baked into the chat; clear it so the next new chat
       // doesn't silently inherit this agent/model.
       set({ draft: { agentId: null, model: null, profileId: null, sampling: null } })
-      void get().sendMessage(chat.id, firstMessage)
+      void get().sendMessage(chat.id, firstMessage, images)
       return chat.id
     },
 
-    async sendMessage(chatId, content) {
+    async sendMessage(chatId, content, images) {
       let chat = get().chats[chatId]
       if (!chat || get().streams[chatId]) return
       const isFirstMessage = chat.nodes[chat.rootId].childrenIds.length === 0
-      chat = appendNode(chat, { id: nanoid(), role: 'user', content, createdAt: Date.now() })
+      chat = appendNode(chat, { id: nanoid(), role: 'user', content, images, createdAt: Date.now() })
       if (isFirstMessage) chat = { ...chat, title: deriveTitle(content) }
       chat = appendNode(chat, {
         id: nanoid(),
@@ -322,13 +322,15 @@ export const useChatsStore = create<ChatsState>((set, get) => {
       if (isFirstMessage) void maybeAutoTitle(chatId)
     },
 
-    async editMessage(chatId, nodeId, content) {
+    async editMessage(chatId, nodeId, content, images) {
       let chat = get().chats[chatId]
       if (!chat || get().streams[chatId]) return
       chat = addSibling(chat, nodeId, {
         id: nanoid(),
         role: 'user',
         content,
+        // Text-only edits keep the original attachments on the new branch.
+        images: images ?? chat.nodes[nodeId].images,
         createdAt: Date.now(),
       })
       chat = appendNode(chat, {

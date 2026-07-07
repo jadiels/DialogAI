@@ -1,4 +1,5 @@
-import type { MessageMetrics, OllamaTimings, Role, SamplingParams, UsageDetails } from './types'
+import type { MessageMetrics, OllamaTimings, SamplingParams, UsageDetails } from './types'
+import type { ApiMessage } from './messageTree'
 
 export type ApiErrorKind = 'network' | 'auth' | 'http' | 'parse'
 
@@ -101,7 +102,8 @@ export interface ChatRequest {
   baseUrl: string
   apiKey: string
   model: string
-  messages: { role: Role; content: string }[]
+  /** Content is a string, or content parts for messages with images. */
+  messages: ApiMessage[]
   /** Optional generation controls; only defined fields are sent. */
   sampling?: SamplingParams
 }

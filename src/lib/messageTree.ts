@@ -4,6 +4,8 @@ export interface NewNode {
   id: string
   role: Role
   content: string
+  /** Attached images (data URIs), user messages only. */
+  images?: string[]
   model?: string
   createdAt: number
   status?: MessageNode['status']
@@ -117,10 +119,30 @@ export function navigateSibling(chat: Chat, nodeId: string, dir: 1 | -1): Chat {
   return { ...chat, currentLeafId: deepestDescendant(chat, target) }
 }
 
-/** Build the API payload, dropping the empty system root and empty assistant stubs. */
-export function pathToApiMessages(path: MessageNode[]): { role: Role; content: string }[] {
+/** OpenAI multimodal content part (text or image_url). */
+export type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+
+export interface ApiMessage {
+  role: Role
+  content: string | ContentPart[]
+}
+
+/**
+ * Build the API payload, dropping the empty system root and empty assistant
+ * stubs. Messages with attached images become multimodal content-part arrays;
+ * plain messages stay strings so text-only servers see the usual shape.
+ */
+export function pathToApiMessages(path: MessageNode[]): ApiMessage[] {
   return path
     .filter((n) => !(n.role === 'system' && n.content.trim() === ''))
-    .filter((n) => !(n.role === 'assistant' && n.content === ''))
-    .map((n) => ({ role: n.role, content: n.content }))
+    .filter((n) => !(n.role === 'assistant' && n.content === '' && !n.images?.length))
+    .map((n) => {
+      if (!n.images?.length) return { role: n.role, content: n.content }
+      const parts: ContentPart[] = []
+      if (n.content) parts.push({ type: 'text', text: n.content })
+      for (const url of n.images) parts.push({ type: 'image_url', image_url: { url } })
+      return { role: n.role, content: parts }
+    })
 }

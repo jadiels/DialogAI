@@ -140,4 +140,28 @@ describe('pathToApiMessages', () => {
     chat = appendNode(chat, { ...node('assistant', ''), status: 'streaming' })
     expect(pathToApiMessages(resolvePath(chat))).toEqual([{ role: 'user', content: 'hi' }])
   })
+
+  it('builds multimodal content parts for messages with images', () => {
+    const uri = 'data:image/png;base64,abc'
+    let chat = baseChat()
+    chat = appendNode(chat, { ...node('user', 'what is this?'), images: [uri] })
+    expect(pathToApiMessages(resolvePath(chat))).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'what is this?' },
+          { type: 'image_url', image_url: { url: uri } },
+        ],
+      },
+    ])
+  })
+
+  it('omits the text part for image-only messages but keeps the message', () => {
+    const uri = 'data:image/png;base64,abc'
+    let chat = baseChat()
+    chat = appendNode(chat, { ...node('user', ''), images: [uri] })
+    expect(pathToApiMessages(resolvePath(chat))).toEqual([
+      { role: 'user', content: [{ type: 'image_url', image_url: { url: uri } }] },
+    ])
+  })
 })

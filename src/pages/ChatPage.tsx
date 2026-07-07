@@ -69,11 +69,11 @@ export default function ChatPage() {
       <Composer
         streaming={streaming}
         onStop={() => chatId && stop(chatId)}
-        onSend={(content) => {
+        onSend={(content, images) => {
           if (chat) {
-            void sendMessage(chat.id, content)
+            void sendMessage(chat.id, content, images)
           } else {
-            void startChat(content).then((id) => {
+            void startChat(content, images).then((id) => {
               if (id) navigate(`/chat/${id}`)
             })
           }
