@@ -9,7 +9,9 @@ const inputClass =
 
 /** Settings section: configure remote MCP servers (Streamable HTTP). */
 export default function McpServersSection() {
-  const servers = useSettingsStore((s) => s.settings.mcpServers ?? [])
+  // Select the raw value; coalescing inside the selector would return a fresh
+  // [] every render and send useSyncExternalStore into an infinite loop.
+  const servers = useSettingsStore((s) => s.settings.mcpServers) ?? []
   const saveMcpServer = useSettingsStore((s) => s.saveMcpServer)
   const deleteMcpServer = useSettingsStore((s) => s.deleteMcpServer)
   const toggleMcpServerEnabled = useSettingsStore((s) => s.toggleMcpServerEnabled)

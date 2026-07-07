@@ -22,7 +22,9 @@ export default function ChatSettings({ chat }: { chat?: Chat }) {
   useClickOutside(ref, () => setOpen(false))
 
   const globalSampling = useSettingsStore((s) => s.settings.sampling)
-  const mcpServers = useSettingsStore((s) => s.settings.mcpServers ?? [])
+  // Select the raw value; coalescing inside the selector would return a fresh
+  // [] every render and send useSyncExternalStore into an infinite loop.
+  const mcpServers = useSettingsStore((s) => s.settings.mcpServers) ?? []
   const connections = useMcpStore((s) => s.connections)
   const agents = useAgentsStore((s) => s.agents)
   const draft = useChatsStore((s) => s.draft)
