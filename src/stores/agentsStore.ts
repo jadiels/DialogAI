@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { arrayMove } from '@dnd-kit/sortable'
-import type { Agent } from '../lib/types'
+import type { Agent, SamplingParams } from '../lib/types'
 import * as storage from '../lib/storage'
 
 export interface AgentInput {
@@ -9,6 +9,7 @@ export interface AgentInput {
   name: string
   systemPrompt: string
   defaultModel: string
+  sampling?: SamplingParams
 }
 
 interface AgentsState {

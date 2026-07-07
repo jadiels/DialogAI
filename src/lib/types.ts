@@ -13,6 +13,20 @@ export interface ConnectionProfile {
   pinnedModels?: string[]
 }
 
+/**
+ * Optional generation controls sent to /v1/chat/completions. Every field is
+ * optional: an unset field is omitted from the request so the server applies
+ * its own default. Resolved global → agent → chat by `resolveSampling`.
+ */
+export interface SamplingParams {
+  temperature?: number
+  top_p?: number
+  max_tokens?: number
+  presence_penalty?: number
+  frequency_penalty?: number
+  seed?: number
+}
+
 export interface Settings {
   version: 1
   /** Ordered — this order drives the connection order in the model selector. */
@@ -23,6 +37,8 @@ export interface Settings {
   titleModel?: string
   /** Default model for the image generation page. */
   imageModel?: string
+  /** Global default sampling params; agents and chats override per-field. */
+  sampling?: SamplingParams
   ui: { sidebarCollapsed: boolean; theme?: Theme }
 }
 
@@ -34,6 +50,8 @@ export interface Agent {
   systemPrompt: string
   /** Empty string means "use the active profile's default model". */
   defaultModel: string
+  /** Per-agent sampling override; merged over the global defaults. */
+  sampling?: SamplingParams
   sortOrder: number
   createdAt: number
   /** Pinned agents are shown directly in the sidebar under "Agents". */
@@ -116,6 +134,8 @@ export interface Chat {
   agentName?: string
   /** Model used for the next send; user can switch mid-chat. */
   model: string
+  /** Per-chat sampling override; merged over agent and global defaults. */
+  sampling?: SamplingParams
   /** Connection this chat talks to (falls back to the first enabled one). */
   profileId?: string
   /** Synthetic root: role 'system' (agent prompt or empty content). */

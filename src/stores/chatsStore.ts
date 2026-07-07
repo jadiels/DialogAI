@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
-import type { Chat, ConnectionProfile, MessageNode } from '../lib/types'
+import type { Chat, ConnectionProfile, MessageNode, SamplingParams } from '../lib/types'
 import {
   addSibling,
   appendNode,
@@ -19,6 +19,7 @@ import {
   streamChat,
 } from '../lib/api'
 import { deriveTitle } from '../lib/title'
+import { resolveSampling } from '../lib/sampling'
 import * as storage from '../lib/storage'
 import { activeProfile, profileById, profileForChat, useSettingsStore } from './settingsStore'
 import { useAgentsStore } from './agentsStore'
@@ -28,6 +29,8 @@ export interface Draft {
   agentId: string | null
   model: string | null
   profileId: string | null
+  /** Per-chat sampling override chosen before the first message is sent. */
+  sampling: SamplingParams | null
 }
 
 interface ChatsState {
@@ -50,6 +53,8 @@ interface ChatsState {
   navigate: (chatId: string, nodeId: string, dir: 1 | -1) => void
   /** Switch the chat's model, and optionally the connection it talks to. */
   setChatModel: (chatId: string, model: string, profileId?: string) => void
+  /** Patch the chat's per-chat sampling override (undefined fields = "inherit"). */
+  setChatSampling: (chatId: string, patch: SamplingParams) => void
   stop: (chatId: string) => void
   deleteChat: (chatId: string) => Promise<void>
   renameChat: (chatId: string, title: string) => void
@@ -159,6 +164,12 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 
     const messages = pathToApiMessages(resolvePath(chat))
     const model = chat.nodes[nodeId].model ?? chat.model
+    // Resolve sampling: global defaults → agent override → per-chat override.
+    const settings = useSettingsStore.getState().settings
+    const agent = chat.agentId
+      ? useAgentsStore.getState().agents.find((a) => a.id === chat.agentId)
+      : undefined
+    const sampling = resolveSampling(settings.sampling, agent?.sampling, chat.sampling)
     const controller = new AbortController()
     set((s) => ({ streams: { ...s.streams, [chatId]: controller } }))
 
@@ -194,7 +205,7 @@ export const useChatsStore = create<ChatsState>((set, get) => {
     const stats = newStreamStats()
     try {
       await streamChat(
-        { baseUrl: profile.baseUrl, apiKey: profile.apiKey, model, messages },
+        { baseUrl: profile.baseUrl, apiKey: profile.apiKey, model, messages, sampling },
         (delta) => {
           if (delta.content) pendingContent += delta.content
           if (delta.reasoning) pendingReasoning += delta.reasoning
@@ -243,7 +254,7 @@ export const useChatsStore = create<ChatsState>((set, get) => {
   return {
     chats: {},
     loaded: false,
-    draft: { agentId: null, model: null, profileId: null },
+    draft: { agentId: null, model: null, profileId: null, sampling: null },
     streams: {},
 
     async loadAll() {
@@ -257,7 +268,7 @@ export const useChatsStore = create<ChatsState>((set, get) => {
     },
 
     resetDraft() {
-      set({ draft: { agentId: null, model: null, profileId: null } })
+      set({ draft: { agentId: null, model: null, profileId: null, sampling: null } })
     },
 
     async startChat(firstMessage) {
@@ -269,20 +280,25 @@ export const useChatsStore = create<ChatsState>((set, get) => {
         ? useAgentsStore.getState().agents.find((a) => a.id === draft.agentId)
         : undefined
       const model = draft.model || agent?.defaultModel || profile.defaultModel
-      const chat = createChat({
-        id: nanoid(),
-        rootId: nanoid(),
-        model,
-        profileId: profile.id,
-        systemPrompt: agent?.systemPrompt ?? '',
-        agentId: agent?.id,
-        agentName: agent?.name,
-        createdAt: Date.now(),
-      })
+      const chat = {
+        ...createChat({
+          id: nanoid(),
+          rootId: nanoid(),
+          model,
+          profileId: profile.id,
+          systemPrompt: agent?.systemPrompt ?? '',
+          agentId: agent?.id,
+          agentName: agent?.name,
+          createdAt: Date.now(),
+        }),
+        // Bake the draft's sampling override into the chat (agent params are
+        // applied live from the agent at send time, so only the draft goes here).
+        sampling: draft.sampling ?? undefined,
+      }
       commit(chat)
       // The draft has been baked into the chat; clear it so the next new chat
       // doesn't silently inherit this agent/model.
-      set({ draft: { agentId: null, model: null, profileId: null } })
+      set({ draft: { agentId: null, model: null, profileId: null, sampling: null } })
       void get().sendMessage(chat.id, firstMessage)
       return chat.id
     },
@@ -352,6 +368,18 @@ export const useChatsStore = create<ChatsState>((set, get) => {
       const chat = get().chats[chatId]
       if (!chat) return
       commit({ ...chat, model, profileId: profileId ?? chat.profileId })
+    },
+
+    setChatSampling(chatId, patch) {
+      const chat = get().chats[chatId]
+      if (!chat) return
+      // Merge the patch, then drop keys set back to undefined so "cleared"
+      // fields fall through to the agent/global default again.
+      const merged = { ...chat.sampling, ...patch }
+      for (const k of Object.keys(merged) as (keyof SamplingParams)[]) {
+        if (merged[k] === undefined) delete merged[k]
+      }
+      commit({ ...chat, sampling: Object.keys(merged).length ? merged : undefined })
     },
 
     stop(chatId) {

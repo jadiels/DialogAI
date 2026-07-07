@@ -1,4 +1,4 @@
-import type { MessageMetrics, OllamaTimings, Role, UsageDetails } from './types'
+import type { MessageMetrics, OllamaTimings, Role, SamplingParams, UsageDetails } from './types'
 
 export type ApiErrorKind = 'network' | 'auth' | 'http' | 'parse'
 
@@ -102,6 +102,8 @@ export interface ChatRequest {
   apiKey: string
   model: string
   messages: { role: Role; content: string }[]
+  /** Optional generation controls; only defined fields are sent. */
+  sampling?: SamplingParams
 }
 
 export interface StreamDelta {
@@ -372,6 +374,9 @@ export async function streamChat(
         model: req.model,
         messages: req.messages,
         stream: true,
+        // Only defined sampling fields are spread in, so a blank control omits
+        // the field entirely and the server applies its own default.
+        ...req.sampling,
         // Ask for token usage in a final chunk; servers that don't support it
         // simply ignore the field and we fall back to counting chunks.
         stream_options: { include_usage: true },
