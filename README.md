@@ -11,6 +11,14 @@ configure.
 
 **Chat**
 - Token-by-token **streaming** responses
+- **Image input (vision)** — attach or paste images into a message; sent as
+  OpenAI multimodal content parts to vision-capable models
+- **Sampling controls** — temperature, top_p, max_tokens, penalties and seed,
+  with global defaults (Settings) that agents and individual chats override
+  per field (gear next to the model selector)
+- **Tool calling via MCP** — connect remote [MCP](https://modelcontextprotocol.io)
+  servers (Streamable HTTP) in Settings and enable their tools per chat; tool
+  calls and results render as collapsible blocks
 - **Markdown** rendering with code syntax highlighting and copy buttons
 - **Reasoning / "thinking"** shown in a collapsible section (supports both the
   `reasoning`/`reasoning_content` field and inline `<think>…</think>` tags)
@@ -36,6 +44,8 @@ configure.
 
 **Images**
 - Generate images via `/v1/images/generations` (DALL·E, gpt-image-1, …)
+- **Edit images** — attach a source image and describe the change; sent to
+  `/v1/images/edits`, with the source recorded in the album viewer
 - Persistent **album** with a viewer showing the prompt, model, size and date,
   plus download and delete
 
@@ -71,6 +81,8 @@ The base URL may be pasted with or without a trailing `/v1`.
   CORS-friendly proxy such as LiteLLM.
 - **API keys** are stored in your browser and sent straight from the client to
   the endpoint — appropriate for local/personal use.
+- **MCP servers**: only remote **Streamable HTTP** servers are supported (the
+  browser can't spawn stdio servers), and they must allow this origin via CORS.
 - **Model types** (chat vs. image vs. embedding) are guessed from the model name,
   since `/v1/models` doesn't report a type. You can always type a model manually.
 
