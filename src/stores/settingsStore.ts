@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { arrayMove } from '@dnd-kit/sortable'
-import type { ConnectionProfile, SamplingParams, Settings, Theme } from '../lib/types'
+import type { ConnectionProfile, McpServerEntry, SamplingParams, Settings, Theme } from '../lib/types'
 import { defaultSettings, loadSettings, saveSettings } from '../lib/storage'
 import { fetchModels, normalizeBaseUrl } from '../lib/api'
 
@@ -31,6 +31,10 @@ interface SettingsState {
   setImageModel: (model: string) => void
   /** Patch the global default sampling params (undefined fields = "unset"). */
   setSampling: (patch: SamplingParams) => void
+  /** Add or update an MCP server config; returns its id. */
+  saveMcpServer: (input: Omit<McpServerEntry, 'id'> & { id?: string }) => string
+  deleteMcpServer: (id: string) => void
+  toggleMcpServerEnabled: (id: string) => void
   /** Reset all settings (connections + preferences) to defaults. */
   reset: () => void
   /** Fetches /v1/models for the profile, caches the list. Rethrows ApiError. */
@@ -131,6 +135,33 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (merged[k] === undefined) delete merged[k]
     }
     commit(set, { ...settings, sampling: Object.keys(merged).length ? merged : undefined })
+  },
+
+  saveMcpServer(input) {
+    const { settings } = get()
+    const servers = settings.mcpServers ?? []
+    const id = input.id ?? nanoid()
+    const entry: McpServerEntry = { ...input, id, url: input.url.trim() }
+    const mcpServers = input.id
+      ? servers.map((s) => (s.id === id ? entry : s))
+      : [...servers, entry]
+    commit(set, { ...settings, mcpServers })
+    return id
+  },
+
+  deleteMcpServer(id) {
+    const { settings } = get()
+    commit(set, { ...settings, mcpServers: (settings.mcpServers ?? []).filter((s) => s.id !== id) })
+  },
+
+  toggleMcpServerEnabled(id) {
+    const { settings } = get()
+    commit(set, {
+      ...settings,
+      mcpServers: (settings.mcpServers ?? []).map((s) =>
+        s.id === id ? { ...s, enabled: !s.enabled } : s,
+      ),
+    })
   },
 
   reset() {

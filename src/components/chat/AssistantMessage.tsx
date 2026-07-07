@@ -7,8 +7,18 @@ import { Markdown } from './Markdown'
 import BranchNav from './BranchNav'
 import MetricsInfo from './MetricsInfo'
 import Reasoning from './Reasoning'
+import ToolCallView from './ToolCallView'
 
-export default function AssistantMessage({ chat, node }: { chat: Chat; node: MessageNode }) {
+export default function AssistantMessage({
+  chat,
+  node,
+  toolResults,
+}: {
+  chat: Chat
+  node: MessageNode
+  /** Tool-result nodes in the visible path, keyed by toolCallId. */
+  toolResults?: Map<string, MessageNode>
+}) {
   const regenerate = useChatsStore((s) => s.regenerate)
   const streaming = useChatsStore((s) => !!s.streams[chat.id])
   const connection = useSettingsStore(
@@ -22,6 +32,9 @@ export default function AssistantMessage({ chat, node }: { chat: Chat; node: Mes
       {node.reasoning && (
         <Reasoning text={node.reasoning} thinking={isStreamingThis && !node.content} />
       )}
+      {node.toolCalls?.map((call) => (
+        <ToolCallView key={call.id || call.name} call={call} result={toolResults?.get(call.id)} />
+      ))}
       {node.content ? (
         <Markdown content={node.content} />
       ) : isStreamingThis && !node.reasoning ? (

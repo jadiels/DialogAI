@@ -1,4 +1,4 @@
-import type { Chat, MessageNode, Role } from './types'
+import type { Chat, MessageNode, Role, ToolCall } from './types'
 
 export interface NewNode {
   id: string
@@ -6,6 +6,10 @@ export interface NewNode {
   content: string
   /** Attached images (data URIs), user messages only. */
   images?: string[]
+  /** Tool-result nodes (role 'tool'). */
+  toolCallId?: string
+  toolName?: string
+  toolCalls?: ToolCall[]
   model?: string
   createdAt: number
   status?: MessageNode['status']
@@ -127,18 +131,39 @@ export type ContentPart =
 export interface ApiMessage {
   role: Role
   content: string | ContentPart[]
+  /** Assistant messages that requested tools (OpenAI wire shape). */
+  tool_calls?: { id: string; type: 'function'; function: { name: string; arguments: string } }[]
+  /** Tool-result messages: which call this answers. */
+  tool_call_id?: string
 }
 
 /**
  * Build the API payload, dropping the empty system root and empty assistant
  * stubs. Messages with attached images become multimodal content-part arrays;
  * plain messages stay strings so text-only servers see the usual shape.
+ * Assistant tool requests and tool results are serialized to the wire shape.
  */
 export function pathToApiMessages(path: MessageNode[]): ApiMessage[] {
   return path
     .filter((n) => !(n.role === 'system' && n.content.trim() === ''))
-    .filter((n) => !(n.role === 'assistant' && n.content === '' && !n.images?.length))
+    .filter(
+      (n) => !(n.role === 'assistant' && n.content === '' && !n.images?.length && !n.toolCalls?.length),
+    )
     .map((n) => {
+      if (n.role === 'tool') {
+        return { role: n.role, content: n.content, tool_call_id: n.toolCallId }
+      }
+      if (n.role === 'assistant' && n.toolCalls?.length) {
+        return {
+          role: n.role,
+          content: n.content,
+          tool_calls: n.toolCalls.map((t) => ({
+            id: t.id,
+            type: 'function' as const,
+            function: { name: t.name, arguments: t.arguments },
+          })),
+        }
+      }
       if (!n.images?.length) return { role: n.role, content: n.content }
       const parts: ContentPart[] = []
       if (n.content) parts.push({ type: 'text', text: n.content })

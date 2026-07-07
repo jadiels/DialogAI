@@ -23,6 +23,7 @@ import { resolveSampling } from '../lib/sampling'
 import * as storage from '../lib/storage'
 import { activeProfile, profileById, profileForChat, useSettingsStore } from './settingsStore'
 import { useAgentsStore } from './agentsStore'
+import { toolDefinitionsFor, useMcpStore } from './mcpStore'
 
 /** Model/agent selection for the next chat (the "/" new-chat screen). */
 export interface Draft {
@@ -31,6 +32,8 @@ export interface Draft {
   profileId: string | null
   /** Per-chat sampling override chosen before the first message is sent. */
   sampling: SamplingParams | null
+  /** MCP tools enabled before the first message is sent. */
+  enabledTools: string[] | null
 }
 
 interface ChatsState {
@@ -55,6 +58,8 @@ interface ChatsState {
   setChatModel: (chatId: string, model: string, profileId?: string) => void
   /** Patch the chat's per-chat sampling override (undefined fields = "inherit"). */
   setChatSampling: (chatId: string, patch: SamplingParams) => void
+  /** Set the namespaced MCP tool names this chat may call. */
+  setChatTools: (chatId: string, enabledTools: string[]) => void
   stop: (chatId: string) => void
   deleteChat: (chatId: string) => Promise<void>
   renameChat: (chatId: string, title: string) => void
@@ -83,7 +88,7 @@ async function titleFromChat(
   model: string,
 ): Promise<string> {
   const transcript = resolvePath(chat)
-    .filter((n) => n.role !== 'system' && n.content)
+    .filter((n) => (n.role === 'user' || n.role === 'assistant') && n.content)
     .map((n) => `${n.role === 'user' ? 'User' : 'Assistant'}: ${n.content}`)
     .join('\n\n')
     .slice(0, 4000)
@@ -142,36 +147,22 @@ export const useChatsStore = create<ChatsState>((set, get) => {
   }
 
   /**
-   * Streams a completion into `nodeId` (an empty assistant node already in
-   * the tree). The conversation payload is the visible path — empty
-   * assistant stubs are filtered out by pathToApiMessages.
+   * Streams one completion turn into `nodeId` (an empty assistant node already
+   * in the tree). Returns 'tool_calls' when the model requested tools (the
+   * node then holds them), otherwise 'done' / 'error' / 'aborted'.
    */
-  async function runCompletion(chatId: string, nodeId: string): Promise<void> {
+  async function streamTurn(
+    chatId: string,
+    nodeId: string,
+    profile: ConnectionProfile,
+    sampling: SamplingParams,
+    controller: AbortController,
+  ): Promise<'done' | 'tool_calls' | 'error' | 'aborted'> {
     const chat = get().chats[chatId]
-    if (!chat) return
-    const profile = profileForChat(useSettingsStore.getState().settings, chat)
-    if (!profile) {
-      // Don't leave the just-appended stub stuck on 'streaming'.
-      commit({
-        ...updateNode(chat, nodeId, {
-          status: 'error',
-          error: 'No active connection. Configure one in Settings.',
-        }),
-        updatedAt: Date.now(),
-      })
-      return
-    }
-
+    if (!chat) return 'aborted'
     const messages = pathToApiMessages(resolvePath(chat))
     const model = chat.nodes[nodeId].model ?? chat.model
-    // Resolve sampling: global defaults → agent override → per-chat override.
-    const settings = useSettingsStore.getState().settings
-    const agent = chat.agentId
-      ? useAgentsStore.getState().agents.find((a) => a.id === chat.agentId)
-      : undefined
-    const sampling = resolveSampling(settings.sampling, agent?.sampling, chat.sampling)
-    const controller = new AbortController()
-    set((s) => ({ streams: { ...s.streams, [chatId]: controller } }))
+    const tools = toolDefinitionsFor(chat.enabledTools)
 
     let pendingContent = ''
     let pendingReasoning = ''
@@ -204,8 +195,8 @@ export const useChatsStore = create<ChatsState>((set, get) => {
 
     const stats = newStreamStats()
     try {
-      await streamChat(
-        { baseUrl: profile.baseUrl, apiKey: profile.apiKey, model, messages, sampling },
+      const { toolCalls } = await streamChat(
+        { baseUrl: profile.baseUrl, apiKey: profile.apiKey, model, messages, sampling, tools },
         (delta) => {
           if (delta.content) pendingContent += delta.content
           if (delta.reasoning) pendingReasoning += delta.reasoning
@@ -214,11 +205,121 @@ export const useChatsStore = create<ChatsState>((set, get) => {
         controller.signal,
         stats,
       )
+      if (toolCalls.length > 0) {
+        finalize({ status: 'done', metrics: computeMetrics(stats), toolCalls })
+        return 'tool_calls'
+      }
       finalize({ status: 'done', metrics: computeMetrics(stats) })
+      return 'done'
     } catch (err) {
       // Stop keeps partial content and whatever metrics we gathered.
-      if (isAbortError(err)) finalize({ status: 'done', metrics: computeMetrics(stats) })
-      else finalize({ status: 'error', error: errorMessage(err) })
+      if (isAbortError(err)) {
+        finalize({ status: 'done', metrics: computeMetrics(stats) })
+        return 'aborted'
+      }
+      finalize({ status: 'error', error: errorMessage(err) })
+      return 'error'
+    }
+  }
+
+  /** Most tool rounds a single send may chain before we bail out. */
+  const MAX_TOOL_ROUNDS = 8
+
+  /**
+   * Runs completion turns into `nodeId`, executing requested MCP tools and
+   * looping (tool results + a fresh assistant stub) until the model finishes
+   * normally, errors, is stopped, or the round limit is hit.
+   */
+  async function runCompletion(chatId: string, nodeId: string): Promise<void> {
+    const chat = get().chats[chatId]
+    if (!chat) return
+    const profile = profileForChat(useSettingsStore.getState().settings, chat)
+    if (!profile) {
+      // Don't leave the just-appended stub stuck on 'streaming'.
+      commit({
+        ...updateNode(chat, nodeId, {
+          status: 'error',
+          error: 'No active connection. Configure one in Settings.',
+        }),
+        updatedAt: Date.now(),
+      })
+      return
+    }
+
+    // Resolve sampling: global defaults → agent override → per-chat override.
+    const settings = useSettingsStore.getState().settings
+    const agent = chat.agentId
+      ? useAgentsStore.getState().agents.find((a) => a.id === chat.agentId)
+      : undefined
+    const sampling = resolveSampling(settings.sampling, agent?.sampling, chat.sampling)
+    const controller = new AbortController()
+    set((s) => ({ streams: { ...s.streams, [chatId]: controller } }))
+
+    try {
+      let currentNodeId = nodeId
+      for (let round = 0; ; round++) {
+        const outcome = await streamTurn(chatId, currentNodeId, profile, sampling, controller)
+        if (outcome !== 'tool_calls') return
+
+        const current = get().chats[chatId]
+        if (!current) return
+        if (round >= MAX_TOOL_ROUNDS) {
+          commit({
+            ...updateNode(current, currentNodeId, {
+              status: 'error',
+              error: `Stopped after ${MAX_TOOL_ROUNDS} consecutive tool rounds.`,
+            }),
+            updatedAt: Date.now(),
+          })
+          return
+        }
+
+        // Execute each requested tool and append its result to the tree.
+        for (const call of current.nodes[currentNodeId].toolCalls ?? []) {
+          if (controller.signal.aborted) return
+          let resultText: string
+          try {
+            let args: Record<string, unknown> = {}
+            try {
+              args = call.arguments ? JSON.parse(call.arguments) : {}
+            } catch {
+              // Model produced malformed JSON; run the tool with no arguments.
+            }
+            resultText = await useMcpStore.getState().callTool(call.name, args, controller.signal)
+          } catch (err) {
+            if (isAbortError(err)) return
+            // Surface the failure to the model so it can react.
+            resultText = `Error: ${errorMessage(err)}`
+          }
+          const c = get().chats[chatId]
+          if (!c) return
+          commit({
+            ...appendNode(c, {
+              id: nanoid(),
+              role: 'tool',
+              content: resultText || '(no output)',
+              toolCallId: call.id,
+              toolName: call.name,
+              createdAt: Date.now(),
+            }),
+            updatedAt: Date.now(),
+          })
+        }
+
+        // Fresh assistant stub for the follow-up turn.
+        const afterTools = get().chats[chatId]
+        if (!afterTools) return
+        const next = appendNode(afterTools, {
+          id: nanoid(),
+          role: 'assistant',
+          content: '',
+          model: afterTools.model,
+          createdAt: Date.now(),
+          status: 'streaming',
+        })
+        commit({ ...next, updatedAt: Date.now() })
+        currentNodeId = next.currentLeafId
+      }
     } finally {
       set((s) => {
         const streams = { ...s.streams }
@@ -254,7 +355,7 @@ export const useChatsStore = create<ChatsState>((set, get) => {
   return {
     chats: {},
     loaded: false,
-    draft: { agentId: null, model: null, profileId: null, sampling: null },
+    draft: { agentId: null, model: null, profileId: null, sampling: null, enabledTools: null },
     streams: {},
 
     async loadAll() {
@@ -268,7 +369,7 @@ export const useChatsStore = create<ChatsState>((set, get) => {
     },
 
     resetDraft() {
-      set({ draft: { agentId: null, model: null, profileId: null, sampling: null } })
+      set({ draft: { agentId: null, model: null, profileId: null, sampling: null, enabledTools: null } })
     },
 
     async startChat(firstMessage, images) {
@@ -294,11 +395,12 @@ export const useChatsStore = create<ChatsState>((set, get) => {
         // Bake the draft's sampling override into the chat (agent params are
         // applied live from the agent at send time, so only the draft goes here).
         sampling: draft.sampling ?? undefined,
+        enabledTools: draft.enabledTools ?? undefined,
       }
       commit(chat)
       // The draft has been baked into the chat; clear it so the next new chat
       // doesn't silently inherit this agent/model.
-      set({ draft: { agentId: null, model: null, profileId: null, sampling: null } })
+      set({ draft: { agentId: null, model: null, profileId: null, sampling: null, enabledTools: null } })
       void get().sendMessage(chat.id, firstMessage, images)
       return chat.id
     },
@@ -382,6 +484,12 @@ export const useChatsStore = create<ChatsState>((set, get) => {
         if (merged[k] === undefined) delete merged[k]
       }
       commit({ ...chat, sampling: Object.keys(merged).length ? merged : undefined })
+    },
+
+    setChatTools(chatId, enabledTools) {
+      const chat = get().chats[chatId]
+      if (!chat) return
+      commit({ ...chat, enabledTools: enabledTools.length ? enabledTools : undefined })
     },
 
     stop(chatId) {

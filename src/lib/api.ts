@@ -1,4 +1,4 @@
-import type { MessageMetrics, OllamaTimings, SamplingParams, UsageDetails } from './types'
+import type { MessageMetrics, OllamaTimings, SamplingParams, ToolCall, UsageDetails } from './types'
 import type { ApiMessage } from './messageTree'
 
 export type ApiErrorKind = 'network' | 'auth' | 'http' | 'parse'
@@ -98,6 +98,16 @@ export async function pingProfile(
   }
 }
 
+/** OpenAI function-tool definition sent with the request. */
+export interface ToolDefinition {
+  type: 'function'
+  function: {
+    name: string
+    description?: string
+    parameters?: Record<string, unknown>
+  }
+}
+
 export interface ChatRequest {
   baseUrl: string
   apiKey: string
@@ -106,6 +116,8 @@ export interface ChatRequest {
   messages: ApiMessage[]
   /** Optional generation controls; only defined fields are sent. */
   sampling?: SamplingParams
+  /** Tools offered to the model; omitted entirely when empty. */
+  tools?: ToolDefinition[]
 }
 
 export interface StreamDelta {
@@ -422,12 +434,19 @@ function captureStats(json: Record<string, unknown>, stats: StreamStats): void {
  * dedicated `reasoning`/`reasoning_content` field and from inline `<think>`
  * tags. Throws ApiError on failure and rethrows AbortError when `signal` fires.
  */
+/** Partial tool-call fragments streamed in a delta (OpenAI wire shape). */
+interface ToolCallDelta {
+  index?: number
+  id?: string
+  function?: { name?: string; arguments?: string }
+}
+
 export async function streamChat(
   req: ChatRequest,
   onDelta: (delta: StreamDelta) => void,
   signal: AbortSignal,
   stats: StreamStats,
-): Promise<{ finishReason: string | null }> {
+): Promise<{ finishReason: string | null; toolCalls: ToolCall[] }> {
   let res: Response
   try {
     res = await fetch(`${req.baseUrl}/v1/chat/completions`, {
@@ -440,6 +459,7 @@ export async function streamChat(
         // Only defined sampling fields are spread in, so a blank control omits
         // the field entirely and the server applies its own default.
         ...req.sampling,
+        ...(req.tools?.length ? { tools: req.tools } : {}),
         // Ask for token usage in a final chunk; servers that don't support it
         // simply ignore the field and we fall back to counting chunks.
         stream_options: { include_usage: true },
@@ -458,6 +478,26 @@ export async function streamChat(
   const splitter = createThinkSplitter()
   let buffer = ''
   let finishReason: string | null = null
+  // Tool calls stream as fragments keyed by index: id/name arrive once,
+  // arguments concatenate across chunks.
+  const toolCallParts: Record<number, ToolCall> = {}
+
+  const collectToolCalls = (deltas: ToolCallDelta[] | undefined) => {
+    if (!Array.isArray(deltas)) return
+    for (const d of deltas) {
+      const i = d.index ?? 0
+      const part = (toolCallParts[i] ??= { id: '', name: '', arguments: '' })
+      if (d.id) part.id = d.id
+      if (d.function?.name) part.name += d.function.name
+      if (d.function?.arguments) part.arguments += d.function.arguments
+    }
+  }
+  const finishedToolCalls = () =>
+    Object.keys(toolCallParts)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map((i) => toolCallParts[i])
+      .filter((t) => t.name)
 
   const emit = (d: StreamDelta) => {
     if (!d.content && !d.reasoning) return
@@ -480,11 +520,12 @@ export async function streamChat(
           const data = line.slice(5).trim()
           if (data === '[DONE]') {
             emit(splitter.flush())
-            return { finishReason }
+            return { finishReason, toolCalls: finishedToolCalls() }
           }
           try {
             const json = JSON.parse(data)
             const choiceDelta = json.choices?.[0]?.delta
+            collectToolCalls(choiceDelta?.tool_calls)
             let carried = false
             // Dedicated reasoning field (DeepSeek, Ollama, OpenRouter…).
             const reasoning = choiceDelta?.reasoning_content ?? choiceDelta?.reasoning
@@ -511,7 +552,7 @@ export async function streamChat(
   } finally {
     stats.endedAt = performance.now()
   }
-  return { finishReason }
+  return { finishReason, toolCalls: finishedToolCalls() }
 }
 
 /**

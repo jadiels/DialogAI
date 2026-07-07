@@ -108,4 +108,25 @@ describe('streamChat SSE parsing', () => {
     ])
     expect(deltas.map((d) => d.content ?? '').join('')).toBe('ok')
   })
+
+  it('accumulates streamed tool calls across chunks (id/name once, args concatenated)', async () => {
+    const { result } = await run([
+      chunk({ tool_calls: [{ index: 0, id: 'call_1', function: { name: 'search', arguments: '' } }] }),
+      chunk({ tool_calls: [{ index: 0, function: { arguments: '{"query":' } }] }),
+      chunk({ tool_calls: [{ index: 0, function: { arguments: '"cats"}' } }] }),
+      chunk({ tool_calls: [{ index: 1, id: 'call_2', function: { name: 'fetch', arguments: '{}' } }] }),
+      chunk({}, { finish_reason: 'tool_calls' }),
+      'data: [DONE]\n\n',
+    ])
+    expect(result.finishReason).toBe('tool_calls')
+    expect(result.toolCalls).toEqual([
+      { id: 'call_1', name: 'search', arguments: '{"query":"cats"}' },
+      { id: 'call_2', name: 'fetch', arguments: '{}' },
+    ])
+  })
+
+  it('returns no tool calls for plain completions', async () => {
+    const { result } = await run([chunk({ content: 'hi' }), 'data: [DONE]\n\n'])
+    expect(result.toolCalls).toEqual([])
+  })
 })

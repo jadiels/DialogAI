@@ -39,7 +39,20 @@ export interface Settings {
   imageModel?: string
   /** Global default sampling params; agents and chats override per-field. */
   sampling?: SamplingParams
+  /** Remote MCP servers (Streamable HTTP) offering tools to chats. */
+  mcpServers?: McpServerEntry[]
   ui: { sidebarCollapsed: boolean; theme?: Theme }
+}
+
+/** A configured MCP server; the live connection state lives in mcpStore. */
+export interface McpServerEntry {
+  id: string
+  name: string
+  /** Full endpoint URL, e.g. https://example.com/mcp. Must allow CORS. */
+  url: string
+  /** Extra headers, e.g. an Authorization bearer token. */
+  headers?: Record<string, string>
+  enabled: boolean
 }
 
 export type Theme = 'dark' | 'light' | 'auto' | 'nebula'
@@ -71,7 +84,15 @@ export interface GeneratedImage {
   createdAt: number
 }
 
-export type Role = 'system' | 'user' | 'assistant'
+export type Role = 'system' | 'user' | 'assistant' | 'tool'
+
+/** A tool invocation requested by the model (OpenAI wire shape). */
+export interface ToolCall {
+  id: string
+  name: string
+  /** Raw JSON string of arguments, as streamed by the server. */
+  arguments: string
+}
 
 export interface UsageDetails {
   prompt_tokens?: number
@@ -127,6 +148,12 @@ export interface MessageNode {
   reasoning?: string
   /** For assistant messages: which model produced it. */
   model?: string
+  /** Assistant messages: tool invocations the model requested this turn. */
+  toolCalls?: ToolCall[]
+  /** Tool-result messages (role 'tool'): the call this answers, for the API. */
+  toolCallId?: string
+  /** Tool-result messages: display name of the tool that ran. */
+  toolName?: string
   createdAt: number
   status?: 'streaming' | 'error' | 'done'
   error?: string
@@ -144,6 +171,8 @@ export interface Chat {
   model: string
   /** Per-chat sampling override; merged over agent and global defaults. */
   sampling?: SamplingParams
+  /** Namespaced MCP tool names enabled for this chat; empty/absent = no tools. */
+  enabledTools?: string[]
   /** Connection this chat talks to (falls back to the first enabled one). */
   profileId?: string
   /** Synthetic root: role 'system' (agent prompt or empty content). */

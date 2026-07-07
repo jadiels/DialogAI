@@ -26,6 +26,7 @@ import { classifyModel } from '../lib/modelKind'
 import ProfileForm from '../components/settings/ProfileForm'
 import ModelPicker from '../components/settings/ModelPicker'
 import SamplingFields from '../components/settings/SamplingFields'
+import McpServersSection from '../components/settings/McpServersSection'
 import GroupedModelPicker from '../components/settings/GroupedModelPicker'
 import { Modal } from '../components/ui/Modal'
 import { Menu } from '../components/ui/Menu'
@@ -446,6 +447,8 @@ export default function SettingsPage() {
             <SamplingFields value={settings.sampling ?? {}} onChange={setSampling} />
           </div>
         </section>
+
+        <McpServersSection />
 
         <section className="mt-10">
           <h2 className="font-medium text-gray-200">Backup &amp; restore</h2>

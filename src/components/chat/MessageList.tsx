@@ -8,6 +8,15 @@ export default function MessageList({ chat }: { chat: Chat }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const pinnedToBottom = useRef(true)
   const path = useMemo(() => resolvePath(chat), [chat])
+  // Tool results are rendered inside the assistant message that requested
+  // them, so index them by the call they answer.
+  const toolResults = useMemo(() => {
+    const map = new Map<string, (typeof path)[number]>()
+    for (const node of path) {
+      if (node.role === 'tool' && node.toolCallId) map.set(node.toolCallId, node)
+    }
+    return map
+  }, [path])
 
   useEffect(() => {
     const el = containerRef.current
@@ -26,12 +35,12 @@ export default function MessageList({ chat }: { chat: Chat }) {
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6">
         {path
-          .filter((node) => node.role !== 'system')
+          .filter((node) => node.role === 'user' || node.role === 'assistant')
           .map((node) =>
             node.role === 'user' ? (
               <UserMessage key={node.id} chat={chat} node={node} />
             ) : (
-              <AssistantMessage key={node.id} chat={chat} node={node} />
+              <AssistantMessage key={node.id} chat={chat} node={node} toolResults={toolResults} />
             ),
           )}
       </div>
