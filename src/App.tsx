@@ -5,6 +5,7 @@ import { useChatsStore } from './stores/chatsStore'
 import { useAgentsStore } from './stores/agentsStore'
 import { useUiStore } from './stores/uiStore'
 import { useSettingsStore } from './stores/settingsStore'
+import { useMcpStore } from './stores/mcpStore'
 import { applyTheme, watchSystemTheme } from './lib/theme'
 import { Icon } from './components/ui/icons'
 
@@ -18,6 +19,8 @@ export default function App() {
   useEffect(() => {
     void useChatsStore.getState().loadAll()
     void useAgentsStore.getState().loadAll()
+    // Connect enabled MCP servers so chat tools are available after a reload.
+    useMcpStore.getState().connectEnabled()
   }, [])
 
   useEffect(() => {

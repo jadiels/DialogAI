@@ -3,6 +3,7 @@ import { useChatsStore } from '../stores/chatsStore'
 import { useAgentsStore } from '../stores/agentsStore'
 import { useActiveProfile } from '../stores/settingsStore'
 import ModelSelector from '../components/chat/ModelSelector'
+import ChatSettings from '../components/chat/ChatSettings'
 import MessageList from '../components/chat/MessageList'
 import Composer from '../components/chat/Composer'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -47,8 +48,9 @@ export default function ChatPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-13 shrink-0 items-center px-3">
+      <header className="flex h-13 shrink-0 items-center gap-1 px-3">
         <ModelSelector chat={chat} />
+        <ChatSettings chat={chat} />
       </header>
 
       {chat ? (
@@ -67,11 +69,11 @@ export default function ChatPage() {
       <Composer
         streaming={streaming}
         onStop={() => chatId && stop(chatId)}
-        onSend={(content) => {
+        onSend={(content, images) => {
           if (chat) {
-            void sendMessage(chat.id, content)
+            void sendMessage(chat.id, content, images)
           } else {
-            void startChat(content).then((id) => {
+            void startChat(content, images).then((id) => {
               if (id) navigate(`/chat/${id}`)
             })
           }

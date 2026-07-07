@@ -56,9 +56,24 @@ export default function UserMessage({ chat, node }: { chat: Chat; node: MessageN
 
   return (
     <div className="group flex flex-col items-end gap-1">
-      <div className="max-w-xl whitespace-pre-wrap rounded-3xl bg-bubble px-4 py-2.5 text-[15px]">
-        {node.content}
-      </div>
+      {node.images && node.images.length > 0 && (
+        <div className="flex max-w-xl flex-wrap justify-end gap-2">
+          {node.images.map((src, i) => (
+            <img
+              key={i}
+              src={src}
+              alt={`Attachment ${i + 1}`}
+              className="max-h-48 max-w-60 rounded-2xl border border-white/10 object-cover"
+              loading="lazy"
+            />
+          ))}
+        </div>
+      )}
+      {node.content && (
+        <div className="max-w-xl whitespace-pre-wrap rounded-3xl bg-bubble px-4 py-2.5 text-[15px]">
+          {node.content}
+        </div>
+      )}
       <div className="flex h-6 items-center gap-1">
         <BranchNav chat={chat} node={node} />
         <button
