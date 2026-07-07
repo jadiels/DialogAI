@@ -231,6 +231,67 @@ export async function generateImage(req: ImageRequest, signal: AbortSignal): Pro
   }
 }
 
+export interface ImageEditRequest {
+  baseUrl: string
+  apiKey: string
+  model: string
+  prompt: string
+  size: string
+  n: number
+  /** Source image to edit (PNG works everywhere; other types depend on the model). */
+  image: Blob
+}
+
+/**
+ * Edit an image via the OpenAI-compatible /v1/images/edits endpoint
+ * (multipart/form-data). Returns displayable sources like generateImage.
+ */
+export async function editImage(req: ImageEditRequest, signal: AbortSignal): Promise<string[]> {
+  const attempt = async (includeFormat: boolean): Promise<string[]> => {
+    const form = new FormData()
+    form.set('model', req.model)
+    form.set('prompt', req.prompt)
+    form.set('n', String(req.n))
+    form.set('size', req.size)
+    form.set('image', req.image, 'image.png')
+    // dall-e-2 accepts response_format; gpt-image-1 rejects it (returns b64 anyway).
+    if (includeFormat) form.set('response_format', 'b64_json')
+    let res: Response
+    try {
+      // No Content-Type header: the browser sets multipart/form-data + boundary.
+      res = await fetch(`${req.baseUrl}/v1/images/edits`, {
+        method: 'POST',
+        headers: authHeaders(req.apiKey),
+        body: form,
+        signal,
+      })
+    } catch (err) {
+      if (isAbortError(err)) throw err
+      throw networkError()
+    }
+    if (!res.ok) throw await toApiError(res)
+    try {
+      const json = await res.json()
+      const data = (json.data ?? []) as { b64_json?: string; url?: string }[]
+      return data
+        .map((d) => (d.b64_json ? `data:image/png;base64,${d.b64_json}` : d.url))
+        .filter((s): s is string => !!s)
+    } catch {
+      throw new ApiError('parse', 'Unexpected response from /v1/images/edits.')
+    }
+  }
+
+  try {
+    return await attempt(true)
+  } catch (err) {
+    // Retry without response_format when the model doesn't support it.
+    if (err instanceof ApiError && err.kind === 'http' && /response_format/i.test(err.message)) {
+      return attempt(false)
+    }
+    throw err
+  }
+}
+
 export interface PullProgress {
   status: string
   completed?: number

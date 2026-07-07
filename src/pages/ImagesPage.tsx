@@ -4,7 +4,8 @@ import { nanoid } from 'nanoid'
 import type { GeneratedImage } from '../lib/types'
 import { enabledProfiles, useSettingsStore } from '../stores/settingsStore'
 import { useImagesStore } from '../stores/imagesStore'
-import { errorMessage, generateImage, isAbortError } from '../lib/api'
+import { editImage, errorMessage, generateImage, isAbortError } from '../lib/api'
+import { dataUriToBlob, fileToDataUri } from '../lib/image'
 import { classifyModel } from '../lib/modelKind'
 import { EmptyState } from '../components/ui/EmptyState'
 import GroupedModelPicker from '../components/settings/GroupedModelPicker'
@@ -48,9 +49,12 @@ export default function ImagesPage() {
   const [size, setSize] = useState('1024x1024')
   const [count, setCount] = useState(1)
   const [prompt, setPrompt] = useState('')
+  /** Source image (data URI) — when set, we call /v1/images/edits instead. */
+  const [source, setSource] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const abort = useRef<AbortController | null>(null)
+  const sourceRef = useRef<HTMLInputElement>(null)
 
   const profileForModel = (m: string) =>
     enabled.find((p) => p.models.includes(m)) ?? enabled[0] ?? null
@@ -78,10 +82,10 @@ export default function ImagesPage() {
     setError('')
     const promptText = prompt.trim()
     try {
-      const srcs = await generateImage(
-        { baseUrl: profile.baseUrl, apiKey: profile.apiKey, model: target, prompt: promptText, size, n: count },
-        controller.signal,
-      )
+      const base = { baseUrl: profile.baseUrl, apiKey: profile.apiKey, model: target, prompt: promptText, size, n: count }
+      const srcs = source
+        ? await editImage({ ...base, image: dataUriToBlob(source) }, controller.signal)
+        : await generateImage(base, controller.signal)
       const now = Date.now()
       const created: GeneratedImage[] = srcs.map((src, i) => ({
         id: nanoid(),
@@ -90,6 +94,7 @@ export default function ImagesPage() {
         model: target,
         size,
         connectionName: profile.name,
+        sourceSrc: source ?? undefined,
         createdAt: now + i,
       }))
       await addImages(created)
@@ -186,6 +191,50 @@ export default function ImagesPage() {
             </p>
           )}
 
+          <div className="flex items-center gap-3">
+            <input
+              ref={sourceRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                if (file) void fileToDataUri(file).then(setSource)
+              }}
+            />
+            {source ? (
+              <>
+                <img
+                  src={source}
+                  alt="Source to edit"
+                  className="size-16 rounded-lg border border-white/10 object-cover"
+                />
+                <div className="min-w-0 flex-1 text-xs text-gray-500">
+                  Editing this image (<code className="text-gray-400">/v1/images/edits</code>).
+                  The prompt describes the change.
+                </div>
+                <button
+                  onClick={() => setSource(null)}
+                  className="shrink-0 rounded-lg bg-white/5 p-2 text-gray-400 ring-1 ring-white/10 hover:bg-white/10 hover:text-gray-200"
+                  aria-label="Remove source image"
+                  title="Remove source image (back to text-to-image)"
+                >
+                  <Icon name="x" size={15} />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => sourceRef.current?.click()}
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300"
+                title="Attach an image to edit instead of generating from scratch"
+              >
+                <Icon name="paperclip" size={13} />
+                Attach an image to edit…
+              </button>
+            )}
+          </div>
+
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -193,7 +242,11 @@ export default function ImagesPage() {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void generate()
             }}
             rows={3}
-            placeholder="Describe the image…  (Cmd/Ctrl+Enter to generate)"
+            placeholder={
+              source
+                ? 'Describe the edit…  (Cmd/Ctrl+Enter to generate)'
+                : 'Describe the image…  (Cmd/Ctrl+Enter to generate)'
+            }
             className={`resize-y ${inputClass}`}
           />
 
@@ -204,7 +257,7 @@ export default function ImagesPage() {
               className="flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:opacity-90 disabled:opacity-40"
             >
               {busy ? <Icon name="refresh" size={15} className="animate-spin" /> : <Icon name="image" size={15} />}
-              {busy ? 'Generating…' : 'Generate'}
+              {busy ? (source ? 'Editing…' : 'Generating…') : source ? 'Edit image' : 'Generate'}
             </button>
             {busy && (
               <button
@@ -315,6 +368,17 @@ function ImageViewer({
             <div className="mb-1 text-xs text-gray-500">Prompt</div>
             <p className="whitespace-pre-wrap text-sm text-gray-200">{image.prompt}</p>
           </div>
+
+          {image.sourceSrc && (
+            <div>
+              <div className="mb-1 text-xs text-gray-500">Edited from</div>
+              <img
+                src={image.sourceSrc}
+                alt="Source image"
+                className="max-h-24 rounded-lg border border-white/10 object-cover"
+              />
+            </div>
+          )}
 
           <dl className="flex flex-col gap-1.5 text-xs">
             <div className="flex justify-between gap-3">

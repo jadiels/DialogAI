@@ -66,6 +66,8 @@ export interface GeneratedImage {
   model: string
   size: string
   connectionName?: string
+  /** For edits (/v1/images/edits): the input image this was derived from. */
+  sourceSrc?: string
   createdAt: number
 }
 
