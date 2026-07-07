@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import type { Agent } from '../../lib/types'
+import type { Agent, SamplingParams } from '../../lib/types'
 import { useAgentsStore } from '../../stores/agentsStore'
-import { useActiveProfile } from '../../stores/settingsStore'
+import { useActiveProfile, useSettingsStore } from '../../stores/settingsStore'
 import { Modal } from '../ui/Modal'
 import ModelPicker from '../settings/ModelPicker'
+import SamplingFields from '../settings/SamplingFields'
 
 export default function AgentFormModal({
   agent,
@@ -14,10 +15,23 @@ export default function AgentFormModal({
 }) {
   const saveAgent = useAgentsStore((s) => s.saveAgent)
   const profile = useActiveProfile()
+  const globalSampling = useSettingsStore((s) => s.settings.sampling)
   const [name, setName] = useState(agent?.name ?? '')
   const [systemPrompt, setSystemPrompt] = useState(agent?.systemPrompt ?? '')
   const [defaultModel, setDefaultModel] = useState(agent?.defaultModel ?? '')
+  const [sampling, setSampling] = useState<SamplingParams>(agent?.sampling ?? {})
+  const [showSampling, setShowSampling] = useState(!!agent?.sampling)
   const canSave = name.trim() && systemPrompt.trim()
+
+  function patchSampling(patch: SamplingParams) {
+    setSampling((prev) => {
+      const merged = { ...prev, ...patch }
+      for (const k of Object.keys(merged) as (keyof SamplingParams)[]) {
+        if (merged[k] === undefined) delete merged[k]
+      }
+      return merged
+    })
+  }
 
   return (
     <Modal
@@ -64,6 +78,26 @@ export default function AgentFormModal({
           />
         </label>
 
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowSampling((v) => !v)}
+            className="text-sm text-gray-400 hover:text-gray-200"
+          >
+            {showSampling ? '▾' : '▸'} Sampling parameters{' '}
+            <span className="text-gray-500">(optional — overrides the global defaults)</span>
+          </button>
+          {showSampling && (
+            <div className="mt-3">
+              <SamplingFields
+                value={sampling}
+                onChange={patchSampling}
+                inherited={globalSampling}
+              />
+            </div>
+          )}
+        </div>
+
         <div className="mt-2 flex justify-end gap-2">
           <button
             onClick={onClose}
@@ -79,6 +113,7 @@ export default function AgentFormModal({
                 name: name.trim(),
                 systemPrompt: systemPrompt.trim(),
                 defaultModel: defaultModel.trim(),
+                sampling: Object.keys(sampling).length ? sampling : undefined,
               })
               onClose()
             }}

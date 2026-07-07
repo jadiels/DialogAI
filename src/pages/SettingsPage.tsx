@@ -25,6 +25,7 @@ import {
 import { classifyModel } from '../lib/modelKind'
 import ProfileForm from '../components/settings/ProfileForm'
 import ModelPicker from '../components/settings/ModelPicker'
+import SamplingFields from '../components/settings/SamplingFields'
 import GroupedModelPicker from '../components/settings/GroupedModelPicker'
 import { Modal } from '../components/ui/Modal'
 import { Menu } from '../components/ui/Menu'
@@ -154,6 +155,7 @@ export default function SettingsPage() {
   const deleteProfile = useSettingsStore((s) => s.deleteProfile)
   const setTitleModel = useSettingsStore((s) => s.setTitleModel)
   const setImageModel = useSettingsStore((s) => s.setImageModel)
+  const setSampling = useSettingsStore((s) => s.setSampling)
   const setTheme = useSettingsStore((s) => s.setTheme)
   const theme = settings.ui.theme ?? 'auto'
   const resetSettings = useSettingsStore((s) => s.reset)
@@ -432,6 +434,17 @@ export default function SettingsPage() {
             </button>
           </div>
           {imgRefreshError && <p className="mt-1 text-xs text-red-400">{imgRefreshError}</p>}
+        </section>
+
+        <section className="mt-10">
+          <h2 className="font-medium text-gray-200">Generation defaults</h2>
+          <p className="text-sm text-gray-500">
+            Default sampling parameters sent with every chat completion. Leave a field empty to use
+            the provider&apos;s default. Agents and individual chats can override each field.
+          </p>
+          <div className="mt-3 max-w-lg">
+            <SamplingFields value={settings.sampling ?? {}} onChange={setSampling} />
+          </div>
         </section>
 
         <section className="mt-10">
