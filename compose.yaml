@@ -1,0 +1,18 @@
+services:
+  dialogai:
+    build: .
+    image: dialogai:local
+    container_name: dialogai
+    ports:
+      - "8080:80"
+    # Comes back up automatically whenever the Docker engine starts.
+    restart: unless-stopped
+
+# Pinned because the default pool handed this project 172.21.0.0/16, which
+# swallows the LAN (172.21.0.0/24) and makes every container on this host
+# unable to reach the Jetsons.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
