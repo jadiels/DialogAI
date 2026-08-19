@@ -18,6 +18,9 @@ export interface ConnectionProfile {
  * optional: an unset field is omitted from the request so the server applies
  * its own default. Resolved global → agent → chat by `resolveSampling`.
  */
+/** OpenAI-style reasoning effort; 'none' turns thinking off (Ollama, OpenAI…). */
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high'
+
 export interface SamplingParams {
   temperature?: number
   top_p?: number
@@ -25,6 +28,7 @@ export interface SamplingParams {
   presence_penalty?: number
   frequency_penalty?: number
   seed?: number
+  reasoning_effort?: ReasoningEffort
 }
 
 export interface Settings {

@@ -36,4 +36,12 @@ describe('resolveSampling', () => {
       frequency_penalty: 0,
     })
   })
+
+  it('merges reasoning_effort with the same precedence as other fields', () => {
+    expect(resolveSampling({ reasoning_effort: 'high' }, { reasoning_effort: 'none' })).toEqual({
+      reasoning_effort: 'none',
+    })
+    // An unset layer doesn't override a set value.
+    expect(resolveSampling({ reasoning_effort: 'none' }, {})).toEqual({ reasoning_effort: 'none' })
+  })
 })

@@ -1,6 +1,6 @@
-import type { SamplingParams } from './types'
+import type { ReasoningEffort, SamplingParams } from './types'
 
-/** The sampling fields, in a fixed order — the single source of truth for UI + merge. */
+/** The numeric sampling fields, in a fixed order — the single source of truth for UI + merge. */
 export const SAMPLING_FIELDS = [
   'temperature',
   'top_p',
@@ -11,6 +11,15 @@ export const SAMPLING_FIELDS = [
 ] as const
 
 export type SamplingField = (typeof SAMPLING_FIELDS)[number]
+
+/** Options for the thinking / reasoning-effort select, in display order. */
+export const REASONING_EFFORTS: readonly ReasoningEffort[] = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+]
 
 /**
  * Merge sampling params by precedence (global → agent → chat): a later layer's
@@ -26,6 +35,7 @@ export function resolveSampling(...layers: (SamplingParams | undefined)[]): Samp
       const v = layer[key]
       if (typeof v === 'number' && Number.isFinite(v)) out[key] = v
     }
+    if (layer.reasoning_effort) out.reasoning_effort = layer.reasoning_effort
   }
   return out
 }

@@ -1,5 +1,13 @@
-import type { SamplingParams } from '../../lib/types'
-import { SAMPLING_FIELDS, type SamplingField } from '../../lib/sampling'
+import type { ReasoningEffort, SamplingParams } from '../../lib/types'
+import { REASONING_EFFORTS, SAMPLING_FIELDS, type SamplingField } from '../../lib/sampling'
+
+const EFFORT_LABELS: Record<ReasoningEffort, string> = {
+  none: 'Off (no thinking)',
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+}
 
 const FIELD_META: Record<
   SamplingField,
@@ -57,6 +65,32 @@ export default function SamplingFields({
           </label>
         )
       })}
+      <label className="col-span-2 flex flex-col gap-1.5">
+        <span className="text-sm text-gray-300">Thinking</span>
+        <select
+          value={value.reasoning_effort ?? ''}
+          onChange={(e) =>
+            onChange({
+              reasoning_effort: e.target.value ? (e.target.value as ReasoningEffort) : undefined,
+            })
+          }
+          className={inputClass}
+        >
+          <option value="">
+            {inherited?.reasoning_effort
+              ? `Default (${EFFORT_LABELS[inherited.reasoning_effort]})`
+              : 'Default (model decides)'}
+          </option>
+          {REASONING_EFFORTS.map((effort) => (
+            <option key={effort} value={effort}>
+              {EFFORT_LABELS[effort]}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-gray-500">
+          Sent as <code>reasoning_effort</code>; “Off” disables thinking on models that support it.
+        </span>
+      </label>
     </div>
   )
 }
