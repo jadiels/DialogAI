@@ -3,6 +3,7 @@ import type { McpServerEntry } from '../../lib/types'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useMcpStore } from '../../stores/mcpStore'
 import { Icon } from '../ui/icons'
+import McpToolsModal from './McpToolsModal'
 
 const inputClass =
   'w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-white/25'
@@ -20,6 +21,8 @@ export default function McpServersSection() {
   const disconnect = useMcpStore((s) => s.disconnect)
 
   const [editing, setEditing] = useState<McpServerEntry | 'new' | null>(null)
+  /** Server whose tool list is open in the details modal. */
+  const [toolsFor, setToolsFor] = useState<McpServerEntry | null>(null)
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   const [token, setToken] = useState('')
@@ -95,21 +98,23 @@ export default function McpServersSection() {
                 <div className="flex items-center gap-2 text-sm text-gray-200">
                   <span className="truncate">{server.name}</span>
                   {server.enabled && conn && (
-                    <span
-                      className={`shrink-0 text-xs ${
-                        conn.status === 'online'
-                          ? 'text-accent'
-                          : conn.status === 'error'
-                            ? 'text-red-400'
-                            : 'text-gray-500'
-                      }`}
-                    >
-                      {conn.status === 'online'
-                        ? `${conn.tools.length} tool${conn.tools.length === 1 ? '' : 's'}`
-                        : conn.status === 'error'
-                          ? 'offline'
-                          : 'connecting…'}
-                    </span>
+                    conn.status === 'online' ? (
+                      <button
+                        onClick={() => setToolsFor(server)}
+                        className="shrink-0 rounded text-xs text-accent underline-offset-2 hover:underline"
+                        aria-label={`Show tools of ${server.name}`}
+                      >
+                        {conn.tools.length} tool{conn.tools.length === 1 ? '' : 's'}
+                      </button>
+                    ) : (
+                      <span
+                        className={`shrink-0 text-xs ${
+                          conn.status === 'error' ? 'text-red-400' : 'text-gray-500'
+                        }`}
+                      >
+                        {conn.status === 'error' ? 'offline' : 'connecting…'}
+                      </span>
+                    )
                   )}
                 </div>
                 <div className="truncate text-xs text-gray-500" title={conn?.error ?? server.url}>
@@ -197,6 +202,14 @@ export default function McpServersSection() {
           <Icon name="plus" size={15} />
           Add MCP server
         </button>
+      )}
+
+      {toolsFor && (
+        <McpToolsModal
+          serverName={toolsFor.name}
+          tools={connections[toolsFor.id]?.tools ?? []}
+          onClose={() => setToolsFor(null)}
+        />
       )}
     </section>
   )
