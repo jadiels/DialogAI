@@ -7,12 +7,27 @@ function displayName(namespaced: string): string {
   return splitToolName(namespaced)?.toolName ?? namespaced
 }
 
-function prettyArgs(raw: string): string {
+function tryParseJson(raw: string): unknown {
   try {
-    return JSON.stringify(JSON.parse(raw), null, 2)
+    return JSON.parse(raw)
   } catch {
     return raw
   }
+}
+
+/** Full request payload for the call, pretty-printed. */
+function prettyRequest(call: ToolCall): string {
+  return JSON.stringify(
+    { id: call.id, name: call.name, arguments: tryParseJson(call.arguments) },
+    null,
+    2,
+  )
+}
+
+/** Tool result pretty-printed as JSON when it parses, raw text otherwise. */
+function prettyResult(content: string): string {
+  const parsed = tryParseJson(content)
+  return typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2)
 }
 
 /**
@@ -41,12 +56,12 @@ export default function ToolCallView({ call, result }: { call: ToolCall; result?
       </button>
       {open && (
         <div className="border-t border-white/10 px-3 py-2.5 text-sm leading-relaxed text-gray-400">
-          <div className="mb-1 text-xs text-gray-500">Arguments</div>
-          <pre className="mb-2 overflow-x-auto whitespace-pre-wrap text-xs">{prettyArgs(call.arguments)}</pre>
+          <div className="mb-1 text-xs text-gray-500">Request</div>
+          <pre className="mb-2 overflow-x-auto whitespace-pre-wrap text-xs">{prettyRequest(call)}</pre>
           {result && (
             <>
-              <div className="mb-1 text-xs text-gray-500">Result</div>
-              <pre className="overflow-x-auto whitespace-pre-wrap text-xs">{result.content}</pre>
+              <div className="mb-1 text-xs text-gray-500">Response</div>
+              <pre className="overflow-x-auto whitespace-pre-wrap text-xs">{prettyResult(result.content)}</pre>
             </>
           )}
         </div>
