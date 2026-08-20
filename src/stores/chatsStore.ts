@@ -19,6 +19,7 @@ import {
   streamChat,
 } from '../lib/api'
 import { deriveTitle } from '../lib/title'
+import { extractNodeToolCalls } from '../lib/toolCallText'
 import { resolveSampling } from '../lib/sampling'
 import * as storage from '../lib/storage'
 import { activeProfile, profileById, profileForChat, useSettingsStore } from './settingsStore'
@@ -210,6 +211,25 @@ export const useChatsStore = create<ChatsState>((set, get) => {
         return 'tool_calls'
       }
       finalize({ status: 'done', metrics: computeMetrics(stats) })
+      // Fallback: some models (e.g. qwen fine-tunes with thinking on) emit the
+      // call as literal <tool_call> text, often inside an unterminated think
+      // block, so the server never reports structured tool_calls.
+      if (tools.length > 0) {
+        const current = get().chats[chatId]
+        const node = current?.nodes[nodeId]
+        const extracted = node && extractNodeToolCalls(node.content, node.reasoning)
+        if (current && extracted) {
+          commit({
+            ...updateNode(current, nodeId, {
+              content: extracted.content,
+              reasoning: extracted.reasoning,
+              toolCalls: extracted.calls,
+            }),
+            updatedAt: Date.now(),
+          })
+          return 'tool_calls'
+        }
+      }
       return 'done'
     } catch (err) {
       // Stop keeps partial content and whatever metrics we gathered.
